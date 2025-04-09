@@ -27,6 +27,7 @@ wheels/
 venv/
 env/
 ENV/
+*.venv
 
 # IDE
 .idea/
@@ -42,3 +43,4 @@ ENV/
 .Trashes
 ehthumbs.db
 Thumbs.db 
+
