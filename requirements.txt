@@ -1,3 +1,4 @@
 scvi-tools
 scanpy 
 numpy
+pandas
