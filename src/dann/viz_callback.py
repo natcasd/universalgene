@@ -1,6 +1,13 @@
 # viz_callback.py
 from pytorch_lightning.callbacks import Callback
 import torch, os, matplotlib.pyplot as plt, seaborn as sns
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+mpl.rcParams['figure.autolayout'] = False
+mpl.rcParams['savefig.bbox'] = 'tight'
+mpl.rcParams['figure.dpi'] = 600
+plt.rcParams["figure.figsize"] = (12, 8)
+
 
 class PlotAndEmbed(Callback):
     """

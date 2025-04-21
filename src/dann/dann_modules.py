@@ -48,6 +48,7 @@ class DomainClassifier(nn.Module):
         x = F.relu(self.fc1(x))
         x = F.relu(self.fc2(x))
         return F.log_softmax(self.fc3(x), dim=1)
+    
 class CellClassifier(nn.Module):
     def __init__(self, input_dim, num_classes):
         super(CellClassifier, self).__init__()

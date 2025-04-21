@@ -30,13 +30,13 @@ def main():
     parser.add_argument(
         "--epochs", "-e",
         type=int,
-        default=1,
+        default=100,
         help="number of training epochs")
     args = parser.parse_args()
 
     # ─── 2 · Data loading & prep ─────────────────────────────────
     data_path = data_dir / 'tabula_muris' / 'preprocessed' / 'tm_adata_train.pkl'
-    with open('./src/data/tabula_muris/preprocessed/tm_adata_train.pkl', 'rb') as f:
+    with open(data_path, 'rb') as f:
     # with open(data_path, 'rb') as f:
         adata = pickle.load(f)
 
@@ -64,10 +64,13 @@ def main():
         batch_size=64)
 
     # ─── 3 · Callback for figures ────────────────────────────────
-    OUTPUT_DIR = "./src/dann/figures"
-    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    experiment_name = f'mha_encoder_epochs{args.epochs}'
+
+    # OUTPUT_DIR = './figures'
+    figure_dir = script_dir / 'figures' / 'tm_adata_train' / experiment_name
+    os.makedirs(figure_dir, exist_ok=True)
     full_X = torch.tensor(X, dtype=torch.float32)
-    viz_cb = PlotAndEmbed(outdir=OUTPUT_DIR,
+    viz_cb = PlotAndEmbed(outdir=f'{figure_dir}',
                           full_X=full_X,
                           domain_labels=domains)
 
@@ -85,15 +88,16 @@ def main():
         callbacks=[viz_cb],
         log_every_n_steps=10,
         deterministic=True,
+        enable_progress_bar=False
     )
     trainer.fit(model, train_loader, val_loader)
 
     # ─── 5 · Checkpoint ─────────────────────────────────────────
-    ckpt_dir = repo_dir / "checkpoints"
+    ckpt_dir = script_dir / "checkpoints" / experiment_name
     sys.path.append(str(ckpt_dir))
     os.makedirs(ckpt_dir, exist_ok=True)
     trainer.save_checkpoint(
-        os.path.join(ckpt_dir, f"dann_train_tissue_epochs{args.epochs}.ckpt"))
+        os.path.join(ckpt_dir, f"val_loss{trainer.callback_metrics['val/loss'].item():.3f}.ckpt"))
 
 if __name__ == "__main__":
     main()
