@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "universalgene"
+version = "0.1.0"
+description = ""
+authors = ["John Finberg <johnbfinberg@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+scvi-tools = "^1.3.0"
+scanpy = "^1.11.1"
+torch = "^2.7.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
