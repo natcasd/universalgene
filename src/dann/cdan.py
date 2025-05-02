@@ -8,7 +8,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 from torch.utils.data import DataLoader
 
 
-class CDANodule(pl.LightningModule):
+class CDANModule(pl.LightningModule):
     def __init__(
         self,
         input_dim: int,
@@ -34,7 +34,6 @@ class CDANodule(pl.LightningModule):
             task="multiclass", num_classes=num_cell_classes
         )
         self.val_acc_domain = torchmetrics.Accuracy(task="multiclass", num_classes=2)
-        self.scaler = torch.amp.GradScaler()
 
     def smoothed_nll(self, logp, y, ε=0.1):
         n_cls = logp.size(1)
@@ -59,82 +58,84 @@ class CDANodule(pl.LightningModule):
 
     # ---------- Training ----------
     def training_step(self, batch, batch_idx):
-        opt, _ = self.optimizers()
         x, d_lbl, c_lbl = batch
-        d_lbl = d_lbl.long()
-        c_lbl = c_lbl.long()
-        p = self.current_epoch / max(1, self.trainer.max_epochs - 1)
-        alpha = self.λ_domain(p, self.trainer.max_epochs)
+        d_lbl, c_lbl = d_lbl.long(), c_lbl.long()
 
-        # Forward pass
+        α = self.λ_domain(self.current_epoch, self.trainer.max_epochs)
+
         f = self.encoder(x)
-        lp_c = self.cell_clf(f)
-        p_soft = lp_c.exp().detach()  # stop gradients
-        lp_d = self.domain_clf(f, p_soft, α=alpha)
+        log_pC = self.cell_clf(f)
+        p_soft = log_pC.exp().detach()
+        log_pD = self.domain_clf(f, p_soft, α=α)
 
         # Split batch into src/tgt by domain label (0 vs 1) for MMD
         f_s, f_t = f[d_lbl == 0], f[d_lbl == 1]
         loss_mmd = self.mmd_lin(f_s, f_t) if len(f_s) > 0 and len(f_t) > 0 else 0.0
 
         # Calculate losses
-        d_loss = F.nll_loss(lp_d, d_lbl)
-        c_loss = F.nll_loss(lp_c, c_lbl)
+        loss_d = F.nll_loss(log_pD, d_lbl)
+        loss_c = F.nll_loss(log_pC, c_lbl)
         loss = (
-            c_loss
-            + self.hparams.lambda_domain * d_loss
+            loss_c
+            + self.hparams.lambda_domain * loss_d
             + self.hparams.lambda_mmd * loss_mmd
         )
 
-        # Backward pass
-        self.scaler.scale(loss).backward()
-        self.scaler.unscale_(opt)
-        torch.nn.utils.clip_grad_norm_(self.parameters(), 1.0)
-        self.scaler.step(opt)
-        self.scaler.update()
-        opt.zero_grad()
+        # Compute metrics
+        self.train_acc_cell(log_pC, c_lbl)
+        self.train_acc_domain(log_pD, d_lbl)
 
-        # log & update metrics
-        self.train_acc_cell(lp_c, c_lbl)
-        self.train_acc_domain(lp_d, d_lbl)
-
-        self.log("train/loss", loss, on_step=False, on_epoch=True)
-        self.log("train/cell_acc", self.train_acc_cell, on_step=False, on_epoch=True)
-        self.log(
-            "train/domain_acc", self.train_acc_domain, on_step=False, on_epoch=True
+        # Log metrics - Lightning handles back-prop + opt step
+        self.log_dict(
+            {
+                "train/loss": loss,
+                "train/cell_acc": self.train_acc_cell,
+                "train/domain_acc": self.train_acc_domain,
+                "train/mmd_loss": loss_mmd,
+            },
+            prog_bar=True,
+            on_epoch=True,
+            on_step=False,
         )
-        self.log("train/mmd_loss", loss_mmd, on_step=False, on_epoch=True)
+
         return loss
 
     # ---------- Validation ----------
     def validation_step(self, batch, batch_idx):
         x, d_lbl, c_lbl = batch
-        d_lbl = d_lbl.long()
-        c_lbl = c_lbl.long()
+        d_lbl, c_lbl = d_lbl.long(), c_lbl.long()
 
         f = self.encoder(x)
-        lp_c = self.cell_clf(f)
-        p_soft = lp_c.exp().detach()  # stop gradients
-        lp_d = self.domain_clf(f, p_soft, α=1.0)
+        log_pC = self.cell_clf(f)
+        p_soft = log_pC.exp().detach()
+        log_pD = self.domain_clf(f, p_soft, α=1.0)
 
         # Split batch into src/tgt by domain label (0 vs 1) for MMD
         f_s, f_t = f[d_lbl == 0], f[d_lbl == 1]
         loss_mmd = self.mmd_lin(f_s, f_t) if len(f_s) > 0 and len(f_t) > 0 else 0.0
 
-        d_loss = F.nll_loss(lp_d, d_lbl)
-        c_loss = F.nll_loss(lp_c, c_lbl)
+        loss_d = F.nll_loss(log_pD, d_lbl)
+        loss_c = F.nll_loss(log_pC, c_lbl)
         loss = (
-            c_loss
-            + self.hparams.lambda_domain * d_loss
+            loss_c
+            + self.hparams.lambda_domain * loss_d
             + self.hparams.lambda_mmd * loss_mmd
         )
 
-        self.val_acc_cell(lp_c, c_lbl)
-        self.val_acc_domain(lp_d, d_lbl)
+        self.val_acc_cell(log_pC, c_lbl)
+        self.val_acc_domain(log_pD, d_lbl)
 
-        self.log("val/loss", loss, on_step=False, on_epoch=True)
-        self.log("val/cell_acc", self.val_acc_cell, on_step=False, on_epoch=True)
-        self.log("val/domain_acc", self.val_acc_domain, on_step=False, on_epoch=True)
-        self.log("val/mmd_loss", loss_mmd, on_step=False, on_epoch=True)
+        self.log_dict(
+            {
+                "val/loss": loss,
+                "val/cell_acc": self.val_acc_cell,
+                "val/domain_acc": self.val_acc_domain,
+                "val/mmd_loss": loss_mmd,
+            },
+            prog_bar=True,
+            on_epoch=True,
+            on_step=False,
+        )
 
     # ---------- Optimiser ----------
     def configure_optimizers(self):

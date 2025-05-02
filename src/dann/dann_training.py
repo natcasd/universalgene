@@ -11,7 +11,7 @@ import numpy as np
 import pytorch_lightning as pl
 import scipy.sparse as sp
 import torch
-from cdan import CDANodule
+from cdan import CDANModule
 from lightning_dann import DANNModule
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
@@ -44,7 +44,7 @@ def main():
     args = parser.parse_args()
 
     # ─── 2 · Data loading & prep ─────────────────────────────────
-    data_path = data_dir / "tabula_muris" / "preprocessed" / "tm_adata_train.pkl"
+    data_path = data_dir / "tabula_muris" / "preprocessed" / "tm_adata_all.pkl"
     with open(data_path, "rb") as f:
         # with open(data_path, 'rb') as f:
         adata = pickle.load(f)
@@ -106,7 +106,7 @@ def main():
             lr=1e-4,
         )
     elif args.model == "cdan":
-        model = CDANodule(
+        model = CDANModule(
             input_dim=X.shape[1],
             num_cell_classes=num_cell_classes,
             hidden_dim=512,

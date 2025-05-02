@@ -37,7 +37,6 @@ class TransformerDANNModule(pl.LightningModule):
             task="multiclass", num_classes=num_cell_classes
         )
         self.val_acc_domain = torchmetrics.Accuracy(task="multiclass", num_classes=2)
-        self.scaler = torch.amp.GradScaler()
 
     def smoothed_nll(self, logp, y, ε=0.1):
         n_cls = logp.size(1)
@@ -57,43 +56,38 @@ class TransformerDANNModule(pl.LightningModule):
 
     # ---------- Training ----------
     def training_step(self, batch, batch_idx):
-        opt, _ = self.optimizers()
         x, d_lbl, c_lbl = batch
         d_lbl = d_lbl.long()
         c_lbl = c_lbl.long()
-        # alpha = 2. / (1. + torch.exp(-10 * self.current_epoch / self.trainer.max_epochs)) - 1
-        p = self.current_epoch / max(1, self.trainer.max_epochs - 1)
-        alpha = self.λ_domain(p, self.trainer.max_epochs)
 
+        alpha = self.λ_domain(self.current_epoch, self.trainer.max_epochs)
+
+        # Forward pass
         z = self.encoder(x)
         domain_pred = self.domain_clf(z, alpha=alpha)
         cell_pred = self.cell_clf(z)
 
+        # Calculate losses
         d_loss = F.nll_loss(domain_pred, d_lbl)
         c_loss = self.smoothed_nll(cell_pred, c_lbl)
-
         loss = c_loss + self.hparams.lambda_domain * d_loss
 
-        self.scaler.scale(loss).backward()
-        self.scaler.unscale_(opt)
-        torch.nn.utils.clip_grad_norm_(self.parameters(), 1.0)
-        self.scaler.step(opt)
-        self.scaler.update()
-        opt.zero_grad()
-
-        # log & update metrics
+        # Compute metrics
         self.train_acc_cell(cell_pred, c_lbl)
         self.train_acc_domain(domain_pred, d_lbl)
-        # self.log_dict({"train/loss": loss,
-        #                "train/cell_acc":  self.train_acc_cell,
-        #                "train/domain_acc":self.train_acc_domain},
-        #               prog_bar=True, on_step=False, on_epoch=True)
 
-        self.log("train/loss", loss, on_step=False, on_epoch=True)
-        self.log("train/cell_acc", self.train_acc_cell, on_step=False, on_epoch=True)
-        self.log(
-            "train/domain_acc", self.train_acc_domain, on_step=False, on_epoch=True
+        # Log metrics - Lightning handles back-prop + opt step
+        self.log_dict(
+            {
+                "train/loss": loss,
+                "train/cell_acc": self.train_acc_cell,
+                "train/domain_acc": self.train_acc_domain,
+            },
+            prog_bar=True,
+            on_epoch=True,
+            on_step=False,
         )
+
         return loss
 
     # ---------- Validation ----------
@@ -101,6 +95,7 @@ class TransformerDANNModule(pl.LightningModule):
         x, d_lbl, c_lbl = batch
         d_lbl = d_lbl.long()
         c_lbl = c_lbl.long()
+
         z = self.encoder(x)
         domain_pred = self.domain_clf(z, alpha=1.0)
         cell_pred = self.cell_clf(z)
@@ -112,14 +107,16 @@ class TransformerDANNModule(pl.LightningModule):
         self.val_acc_cell(cell_pred, c_lbl)
         self.val_acc_domain(domain_pred, d_lbl)
 
-        # self.log_dict({"val/loss":   loss,
-        #                "val/cell_acc":   self.val_acc_cell,
-        #                "val/domain_acc": self.val_acc_domain},
-        #               prog_bar=True, on_step=False, on_epoch=True)
-
-        self.log("val/loss", loss, on_step=False, on_epoch=True)
-        self.log("val/cell_acc", self.val_acc_cell, on_step=False, on_epoch=True)
-        self.log("val/domain_acc", self.val_acc_domain, on_step=False, on_epoch=True)
+        self.log_dict(
+            {
+                "val/loss": loss,
+                "val/cell_acc": self.val_acc_cell,
+                "val/domain_acc": self.val_acc_domain,
+            },
+            prog_bar=True,
+            on_epoch=True,
+            on_step=False,
+        )
 
     # ---------- Optimiser ----------
     def configure_optimizers(self):
@@ -130,6 +127,6 @@ class TransformerDANNModule(pl.LightningModule):
             "lr_scheduler": {"scheduler": sched, "monitor": "val/loss"},
         }
 
-    # ---------- (Option A) save encoder when training finishes ----------
+    # ---------- (Option A) save encoder when training finishes ----------
     def on_train_end(self):
         torch.save(self.encoder.state_dict(), "dann_encoder.pth")
