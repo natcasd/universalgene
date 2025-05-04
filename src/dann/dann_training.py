@@ -69,6 +69,7 @@ def main():
         ),
         batch_size=64,
         shuffle=True,
+	num_workers=6,
     )
     val_loader = DataLoader(
         TensorDataset(
@@ -77,6 +78,7 @@ def main():
             torch.tensor(c_val, dtype=torch.long),
         ),
         batch_size=64,
+	num_workers=6,
     )
 
     # ─── 3 · Callback for figures ────────────────────────────────

@@ -1,0 +1,33 @@
+## SLURM PROLOG ###############################################################
+##    Job ID : 11227603
+##  Job Name : dann_training
+##  Nodelist : gpu2007
+##      CPUs : 
+##  Mem/Node : 196608 MB
+## Directory : /oscar/scratch/edalal/universalgene
+##   Job Started : Thu May  1 11:24:10 PM EDT 2025
+###############################################################################
+You are using the plain ModelCheckpoint callback. Consider using LitModelCheckpoint which with seamless uploading to Model registry.
+GPU available: True (cuda), used: True
+TPU available: False, using: 0 TPU cores
+HPU available: False, using: 0 HPUs
+LOCAL_RANK: 0 - CUDA_VISIBLE_DEVICES: [0]
+
+  | Name             | Type               | Params | Mode 
+----------------------------------------------------------------
+0 | encoder          | MLPEncoder         | 1.1 M  | train
+1 | domain_clf       | CDANHead           | 10.2 M | train
+2 | cell_clf         | CellClassifier     | 237 K  | train
+3 | train_acc_cell   | MulticlassAccuracy | 0      | train
+4 | train_acc_domain | MulticlassAccuracy | 0      | train
+5 | val_acc_cell     | MulticlassAccuracy | 0      | train
+6 | val_acc_domain   | MulticlassAccuracy | 0      | train
+----------------------------------------------------------------
+11.5 M    Trainable params
+0         Non-trainable params
+11.5 M    Total params
+45.952    Total estimated model params size (MB)
+19        Modules in train mode
+0         Modules in eval mode
+SLURM auto-requeueing enabled. Setting signal handlers.
+`Trainer.fit` stopped: `max_epochs=100` reached.
