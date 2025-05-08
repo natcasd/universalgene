@@ -1,4 +1,13 @@
 scvi-tools
-scanpy 
+scanpy
 numpy
 pandas
+scikit-misc
+torch
+pytorch-lightning
+torchmetrics
+scikit-learn
+matplotlib
+seaborn
+scipy
+tensorboard

@@ -11,10 +11,9 @@ class AttentionEncoder(nn.Module):
                                                dropout=0.1,
                                                batch_first=True)
         self.encoder = nn.TransformerEncoder(enc_layer, n_layers)
+        self.use_cls = cls_token
         if cls_token:
             self.cls_token = nn.Parameter(torch.randn(1, 1, d_model))
-        else:
-            self.cls_token = None
         self.multiply_by_expr = multiply_by_expr
 
     def forward(self, x):
@@ -30,12 +29,12 @@ class AttentionEncoder(nn.Module):
         else:
             x = x + gene_embedding # [B, n_genes, d_model]
         # if passed, cls token for getting cell representation
-        if self.cls_token:
+        if self.use_cls:
             cls = self.cls_token.expand(x.size(0), -1, -1)  # [B, 1, d_model]
             x = torch.cat([cls, x], dim=1)  # [B, G+1, d_model]
         # pass through transformer encoder
         x = self.encoder(x)
-        if self.cls_token:
+        if self.use_cls:
             # return cls token representation
             return x[:, 0]
         else:

@@ -50,3 +50,7 @@ src/models/
 lightning_logs/
 *.pth
 *.png
+
+models/
+lightning_logs/
+slurm-*

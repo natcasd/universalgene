@@ -48,8 +48,9 @@ class PlotAndEmbed(Callback):
         pl_module.eval()
         emb = []
         with torch.no_grad():
-            for xb in torch.split(self.full_X.to(pl_module.device), 8192):
-                emb.append( pl_module.encoder(xb).cpu() )
+            for xb in torch.split(self.full_X, 8192):
+                xb = xb.to(pl_module.device)
+                emb.append(pl_module.encoder(xb).cpu())
         emb = torch.cat(emb).numpy()
 
         plt.figure(figsize=(7,5))
