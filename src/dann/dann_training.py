@@ -41,10 +41,14 @@ def main():
     parser.add_argument(
         "--epochs", "-e", type=int, default=100, help="number of training epochs"
     )
+    parser.add_argument(
+        "--batch_size", "-bs", type=int, default=64, help="number of samples per batch"
+    )
     args = parser.parse_args()
 
     # ─── 2 · Data loading & prep ─────────────────────────────────
-    data_path = data_dir / "tabula_muris" / "preprocessed" / "tm_adata_all.pkl"
+    # data_path = data_dir / "tabula_muris" / "preprocessed" / "tm_adata_all.pkl"
+    data_path = data_dir / "tabula_muris" / "preprocessed" / "tm_adata_train.pkl"
     with open(data_path, "rb") as f:
         # with open(data_path, 'rb') as f:
         adata = pickle.load(f)
@@ -67,7 +71,7 @@ def main():
             torch.tensor(d_train, dtype=torch.long),
             torch.tensor(c_train, dtype=torch.long),
         ),
-        batch_size=64,
+        batch_size=args.batch_size,
         shuffle=True,
 	num_workers=6,
     )
@@ -77,12 +81,12 @@ def main():
             torch.tensor(d_val, dtype=torch.long),
             torch.tensor(c_val, dtype=torch.long),
         ),
-        batch_size=64,
+        batch_size=args.batch_size,
 	num_workers=6,
     )
 
     # ─── 3 · Callback for figures ────────────────────────────────
-    experiment_name = f"{args.model}_epochs{args.epochs}"
+    experiment_name = f"{args.model}-epochs{args.epochs}-batch_size{args.batch_size}-FINAL-REVERTED"
 
     # OUTPUT_DIR = './figures'
     figure_dir = script_dir / "figures" / "tm_adata_train" / experiment_name
@@ -125,7 +129,7 @@ def main():
         callbacks=[viz_cb],
         log_every_n_steps=10,
         deterministic=True,
-        enable_progress_bar=False,
+        # enable_progress_bar=False,
     )
     trainer.fit(model, train_loader, val_loader)
 
@@ -138,7 +142,6 @@ def main():
             ckpt_dir, f"val_loss{trainer.callback_metrics['val/loss'].item():.3f}.ckpt"
         )
     )
-
 
 if __name__ == "__main__":
     main()

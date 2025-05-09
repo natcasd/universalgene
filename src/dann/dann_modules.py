@@ -14,7 +14,7 @@ class GradientReversalLayer(torch.autograd.Function):
     def backward(ctx, grad_output):
         return grad_output.neg() * ctx.alpha, None
 
-
+'''
 class Encoder(nn.Module):
     def __init__(self, input_dim, hidden_dim, num_heads=4):
         super(Encoder, self).__init__()
@@ -31,7 +31,18 @@ class Encoder(nn.Module):
         x, _ = self.attention(x, x, x)
         x = x.squeeze(1)  # Remove the sequence dimension
         return F.relu(self.fc2(x))
+'''
+class Encoder(nn.Module):
+    def __init__(self, input_dim, hidden_dim):
+        super(Encoder, self).__init__()
+        self.fc1 = nn.Linear(input_dim, hidden_dim)
+        self.fc2 = nn.Linear(hidden_dim, hidden_dim//2)
+        self.fc3 = nn.Linear(hidden_dim//2, hidden_dim//4)
 
+    def forward(self, x):
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        return F.relu(self.fc3(x))
 
 class TransformerEncoder(nn.Module):
     def __init__(self, d_in, d_model=512, n_blocks=4, n_heads=8):

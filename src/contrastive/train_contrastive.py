@@ -105,7 +105,7 @@ def main(args):
         log_every_n_steps=10,
         deterministic=True,
         enable_model_summary=False,
-        precision="16-mixed",
+        precision="bf16-mixed",
         strategy="auto"
     )
 
@@ -114,5 +114,6 @@ def main(args):
     trainer.save_checkpoint(args.outdir / f"val_loss{trainer.callback_metrics['val/loss'].item():.3f}.ckpt")
 
 if __name__ == "__main__":
+    torch.set_float32_matmul_precision("medium")
     args = parse_args()
     main(args)

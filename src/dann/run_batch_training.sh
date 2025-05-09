@@ -8,6 +8,8 @@
 #SBATCH --time=24:00:00                  # wall‑clock limit
 #SBATCH --output=logs/%x_%A_%a.out       # one log per seed
 
+#SBATCH --array=0-2 
+
 #SBATCH --mail-user=winston_y_li@brown.edu   # <‑‑ change me
 #SBATCH --mail-type=BEGIN,END,FAIL,ARRAY_TASKS     # BEGIN|END|FAIL|ALL|TIME_LIMIT, etc.
 
@@ -15,12 +17,13 @@
 
 # module purge
 # module load cuda/12.2                    # or your site’s CUDA module
-source ../../pytorch.venv/bin/activate
+source ../../pytorch.venv/bin/activate        
 
-# ---------- 2.  Pick the seed ----------
-# SEED=${SLURM_ARRAY_TASK_ID}              
+# 2) map the array index to a model name
+MODES=(dann transformer_dann cdan)
+MODE=${MODES[$SLURM_ARRAY_TASK_ID]}
 
-# ---------- 3.  Run your code ----------
-srun python dann_training.py -m dann -bs 128
-# srun python dann_training.py -m transformer_dann -bs 128
-# srun python dann_training.py -m cdan -bs 128
+echo "[$(date)] Running mode=$MODE on ${SLURM_JOB_NODELIST}"
+
+# 3) run only that one experiment
+srun python dann_training.py -m "$MODE" -bs 128 -e 100

@@ -54,3 +54,4 @@ lightning_logs/
 models/
 lightning_logs/
 slurm-*
+*.out
