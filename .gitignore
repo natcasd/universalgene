@@ -54,5 +54,4 @@ lightning_logs/
 models/
 lightning_logs/
 slurm-*
-contrastive/runs/
 src/contrastive/runs/

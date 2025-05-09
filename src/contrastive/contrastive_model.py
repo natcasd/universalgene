@@ -20,11 +20,11 @@ def supervised_contrastive_loss(embeddings, cell_types, temperature):
     return loss
     
 class ContrastiveModel(pl.LightningModule):
-    def __init__(self, n_genes, d_model, n_heads, n_layers, lr, cls_token=False, multiply_by_expr=False, temperature=1.0, outdir=None, encoder_type="attention", dropout=0.1):
+    def __init__(self, n_genes, d_model, n_heads, n_layers, lr, cls_token=False, multiply_by_expr=False, temperature=1.0, outdir=None, encoder_type="attention", dropout=0.1, projection=False):
         super(ContrastiveModel, self).__init__()
         self.save_hyperparameters()
         if encoder_type == "attention":
-            self.encoder = AttentionEncoder(n_genes, d_model, n_heads, n_layers, cls_token, multiply_by_expr)
+            self.encoder = AttentionEncoder(n_genes, d_model, n_heads, n_layers, cls_token, multiply_by_expr, projection)
         elif encoder_type == "dense":
             self.encoder = DenseEncoder(n_genes, d_model, n_layers, dropout)
         self.temperature = temperature
@@ -35,7 +35,6 @@ class ContrastiveModel(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         x, _, cell_types = batch
         embeddings = self.encoder(x)
-        embeddings = F.normalize(embeddings, dim=1)
         loss = supervised_contrastive_loss(embeddings, cell_types, self.temperature)
         if batch_idx % 10 == 0:  # Log every 10 steps
             self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
@@ -44,7 +43,6 @@ class ContrastiveModel(pl.LightningModule):
     def validation_step(self, batch, batch_idx):
         x, _, cell_types = batch
         embeddings = self.encoder(x)
-        embeddings = F.normalize(embeddings, dim=1)
         loss = supervised_contrastive_loss(embeddings, cell_types, self.temperature)
         self.log("val/loss", loss, on_epoch=True, prog_bar=False)
 
@@ -63,7 +61,7 @@ class ContrastiveModel(pl.LightningModule):
                 "lr_scheduler": {"scheduler": sched,
                                  "monitor": "val/loss"}}
     def on_train_end(self):
-        torch.save(self.encoder.state_dict(), self.outdir / "contrastive_encoder.pth")
+        torch.save(self.encoder.state_dict(), self.outdir + "/contrastive_encoder.pth")
 
     def on_fit_start(self):
         print("Model is on device:", next(self.parameters()).device)

@@ -16,7 +16,7 @@ import torch
 torch.set_float32_matmul_precision('medium')
 from contrastive_model import ContrastiveModel
 import pytorch_lightning as pl  
-import anndata as ad
+import numpy as np
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -37,6 +37,7 @@ def parse_args():
     parser.add_argument("--nworkers", type=int, default=1)
     parser.add_argument("--encoder_type", type=str, default="attention")
     parser.add_argument("--dropout", type=float, default=0.1)
+    parser.add_argument("--projection", action="store_true")
     return parser.parse_args()
 
 def load_data(path):
@@ -53,13 +54,13 @@ def main(args):
     # load data
     if args.randomsplit:
         X, domains, cells, adata = load_data(args.all_path)
-        train_X, val_X, train_domains, val_domains, train_cells, val_cells = train_test_split(
-        X, domains, cells, test_size=0.2, random_state=42, stratify=domains
+        train_X, val_X, train_domains, val_domains, train_cells, val_cells, train_cells_idx, val_cells_idx = train_test_split(
+        X, domains, cells, np.arange(adata.n_obs), test_size=0.2, random_state=42, stratify=domains
         )
+        adata_test = adata[val_cells_idx]
     else:
-        train_X, train_domains, train_cells, adata_train = load_data(args.train_path)
+        train_X, train_domains, train_cells, _ = load_data(args.train_path)
         val_X, val_domains, val_cells, adata_test = load_data(args.val_path)
-        adata = ad.concat([adata_train, adata_test])
 
     train_loader = DataLoader(
                 TensorDataset(
@@ -92,10 +93,8 @@ def main(args):
         run_name = f"contrastive_dense_d{args.d_model}_l{args.n_layers}_t{args.temperature}_{current_datetime}"
     out_directory = args.outdir + run_name
         
-    full_X = torch.cat((torch.tensor(train_X, dtype=torch.float32), torch.tensor(val_X, dtype=torch.float32)), dim=0)
-    full_domains = torch.cat((torch.tensor(train_domains), torch.tensor(val_domains)), dim=0)
     os.makedirs(out_directory, exist_ok=True)
-    viz_cb = PlotAndEmbed(outdir=out_directory, full_X=full_X, domain_labels=full_domains, batch_size=args.batch_size, full_data=adata)
+    viz_cb = PlotAndEmbed(outdir=out_directory, data=adata_test, batch_size=args.batch_size, x_data=torch.tensor(val_X, dtype=torch.float32))
 
     model = ContrastiveModel(
         n_genes=train_X.shape[1],
@@ -108,7 +107,8 @@ def main(args):
         temperature=args.temperature,
         outdir=out_directory,
         encoder_type=args.encoder_type,
-        dropout=args.dropout
+        dropout=args.dropout,
+        projection=args.projection
     )
     
     logger = pl.loggers.TensorBoardLogger(
