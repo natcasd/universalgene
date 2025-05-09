@@ -70,10 +70,27 @@ tm_adata.raw = tm_adata  # keep full dimension safe
 sc.pp.highly_variable_genes(
     tm_adata,
     flavor="seurat_v3",
-    n_top_genes=2000,
+    n_top_genes=250,
     layer="counts",
     batch_key="tech",
     subset=True,
+)
+print('creating celltype_tech_availability column...')
+celltype_techs = tm_adata.obs.groupby("cell_ontology_class")["tech"].unique()
+celltype_status = {}
+for celltype, tech_list in celltype_techs.items():
+    tech_set = set(tech_list)
+    if len(tech_set) == 1:
+        if "10x" in tech_set:
+            celltype_status[celltype] = "only_10x"
+        else:
+            celltype_status[celltype] = "only_SS2"
+    else:
+        celltype_status[celltype] = "both"
+
+# 3) Create a new column in .obs indicating whether a cell's type is only_10x, only_SS2, or both
+tm_adata.obs["celltype_tech_availability"] = (
+    tm_adata.obs["cell_ontology_class"].map(celltype_status)
 )
 
 print('splitting...')       
@@ -91,12 +108,12 @@ tm_adata_test = tm_adata[
     tm_adata.obs['tissue'].isin(test_tissues)
 ]
 
-os.makedirs(r'data/tabula_muris/preprocessed', exist_ok=True)
-with open(r'data/tabula_muris/preprocessed/tm_adata_train.pkl', 'wb') as f:
+os.makedirs(r'data/tabula_muris/preprocessed_reduced', exist_ok=True)
+with open(r'data/tabula_muris/preprocessed_reduced/tm_adata_train.pkl', 'wb') as f:
     pickle.dump(tm_adata_train, f)
-with open(r'data/tabula_muris/preprocessed/tm_adata_test.pkl', 'wb') as f:
+with open(r'data/tabula_muris/preprocessed_reduced/tm_adata_test.pkl', 'wb') as f:
     pickle.dump(tm_adata_test, f)
-with open(r'data/tabula_muris/preprocessed/tm_adata_all.pkl', 'wb') as f:
+with open(r'data/tabula_muris/preprocessed_reduced/tm_adata_all.pkl', 'wb') as f:
     pickle.dump(tm_adata, f)
 
 print('done')

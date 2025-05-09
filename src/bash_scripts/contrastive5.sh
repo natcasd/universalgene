@@ -13,10 +13,13 @@ source activate universalgene
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 python contrastive/train_contrastive.py \
-    --batch_size 8192 \
-    --n_layers 12 \
+    --batch_size 256 \
+    --n_layers 6 \
+    --n_heads 4 \
     --d_model 512 \
-    --epochs 50 \
+    --epochs 10 \
+    --cls_token \
     --nworkers 6 \
     --lr 1e-4 \
-    --encoder_type dense
+    --train_path data/tabula_muris/preprocessed_reduced/tm_adata_train.pkl \
+    --val_path data/tabula_muris/preprocessed_reduced/tm_adata_test.pkl \
