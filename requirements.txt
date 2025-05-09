@@ -1,5 +1,5 @@
 scvi-tools
-scanpy
+scanpy>=1.9.1
 numpy
 pandas
 scikit-misc
@@ -11,3 +11,4 @@ matplotlib
 seaborn
 scipy
 tensorboard
+threadpoolctl>=3

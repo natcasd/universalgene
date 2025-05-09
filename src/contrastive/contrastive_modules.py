@@ -42,5 +42,28 @@ class AttentionEncoder(nn.Module):
             return x.mean(dim=1)
        # could also think about using projection head here
 
+class DenseEncoder(nn.Module):
+    def __init__(self, n_genes, d_model, n_layers, dropout):
+        super(DenseEncoder, self).__init__()
+        layers = []
+
+        layers.append(nn.Linear(n_genes, d_model))
+        layers.append(nn.ReLU())
+        layers.append(nn.LayerNorm(d_model))
+        layers.append(nn.Dropout(dropout))
+
+        for _ in range(n_layers - 1):
+            layers.append(nn.Linear(d_model, d_model))
+            layers.append(nn.ReLU())
+            layers.append(nn.LayerNorm(d_model))
+            layers.append(nn.Dropout(dropout))
+
+        self.encoder = nn.Sequential(*layers)
+    
+    def forward(self, x):
+        return self.encoder(x)
+        
+        
+
     
         

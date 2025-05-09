@@ -1,5 +1,5 @@
 import os
-
+from datetime import datetime
 from sklearn.model_selection import train_test_split
 
 os.environ["PL_DISABLE_SLURM"] = "1"
@@ -15,7 +15,8 @@ from torch.utils.data import DataLoader, TensorDataset
 import torch
 torch.set_float32_matmul_precision('medium')
 from contrastive_model import ContrastiveModel
-import pytorch_lightning as pl
+import pytorch_lightning as pl  
+import anndata as ad
 
 def parse_args():
     parser = argparse.ArgumentParser()
@@ -32,8 +33,10 @@ def parse_args():
     parser.add_argument("--n_layers", type=int, default=4)
     parser.add_argument("--cls_token", action="store_true")
     parser.add_argument("--multiply_by_expr", action="store_true")
-    parser.add_argument("--outdir", type=str, default="models/contrastive/")
+    parser.add_argument("--outdir", type=str, default="contrastive/runs/")
     parser.add_argument("--nworkers", type=int, default=1)
+    parser.add_argument("--encoder_type", type=str, default="attention")
+    parser.add_argument("--dropout", type=float, default=0.1)
     return parser.parse_args()
 
 def load_data(path):
@@ -44,18 +47,19 @@ def load_data(path):
     cells = adata.obs["cell_ontology_class"].astype("category").cat.codes.values
     scaler = StandardScaler(with_mean=False)
     X = scaler.fit_transform(X).astype("float32")
-    return X, domains, cells
+    return X, domains, cells, adata
 
 def main(args):
     # load data
     if args.randomsplit:
-        X, domains, cells = load_data(args.all_path)
+        X, domains, cells, adata = load_data(args.all_path)
         train_X, val_X, train_domains, val_domains, train_cells, val_cells = train_test_split(
         X, domains, cells, test_size=0.2, random_state=42, stratify=domains
         )
     else:
-        train_X, train_domains, train_cells = load_data(args.train_path)
-        val_X, val_domains, val_cells = load_data(args.val_path)
+        train_X, train_domains, train_cells, adata_train = load_data(args.train_path)
+        val_X, val_domains, val_cells, adata_test = load_data(args.val_path)
+        adata = ad.concat([adata_train, adata_test])
 
     train_loader = DataLoader(
                 TensorDataset(
@@ -80,11 +84,18 @@ def main(args):
             pin_memory=True,
             persistent_workers=True
         )
+    
+    current_datetime = datetime.now().strftime("%m-%d-%H:%M")
+    if args.encoder_type == "attention":
+        run_name = f"contrastive_attention_d{args.d_model}_h{args.n_heads}_l{args.n_layers}_t{args.temperature}_{current_datetime}"
+    else:
+        run_name = f"contrastive_dense_d{args.d_model}_l{args.n_layers}_t{args.temperature}_{current_datetime}"
+    out_directory = args.outdir + run_name
         
     full_X = torch.cat((torch.tensor(train_X, dtype=torch.float32), torch.tensor(val_X, dtype=torch.float32)), dim=0)
     full_domains = torch.cat((torch.tensor(train_domains), torch.tensor(val_domains)), dim=0)
-    os.makedirs(args.outdir, exist_ok=True)
-    viz_cb = PlotAndEmbed(outdir=args.outdir, full_X=full_X, domain_labels=full_domains)
+    os.makedirs(out_directory, exist_ok=True)
+    viz_cb = PlotAndEmbed(outdir=out_directory, full_X=full_X, domain_labels=full_domains, batch_size=args.batch_size, full_data=adata)
 
     model = ContrastiveModel(
         n_genes=train_X.shape[1],
@@ -95,8 +106,17 @@ def main(args):
         cls_token=args.cls_token,
         multiply_by_expr=args.multiply_by_expr,
         temperature=args.temperature,
-        outdir=args.outdir
+        outdir=out_directory,
+        encoder_type=args.encoder_type,
+        dropout=args.dropout
     )
+    
+    logger = pl.loggers.TensorBoardLogger(
+        save_dir=out_directory,
+        name="",
+        version="model"
+    )
+
     trainer = pl.Trainer(
         max_epochs=args.epochs,
         accelerator="gpu",
@@ -106,12 +126,13 @@ def main(args):
         deterministic=True,
         enable_model_summary=False,
         precision="16-mixed",
-        strategy="auto"
+        strategy="auto",
+        logger=logger
     )
 
     trainer.fit(model, train_loader, val_loader)
 
-    trainer.save_checkpoint(args.outdir / f"val_loss{trainer.callback_metrics['val/loss'].item():.3f}.ckpt")
+    trainer.save_checkpoint(out_directory + "/final.ckpt")
 
 if __name__ == "__main__":
     args = parse_args()
