@@ -14,11 +14,10 @@ export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 python contrastive/train_contrastive.py \
     --batch_size 512 \
-    --n_layers 2 \
-    --n_heads 2 \
-    --d_model 256 \
+    --n_layers 4 \
+    --n_heads 4 \
+    --d_model 512 \
     --epochs 10 \
-    --cls_token \
     --nworkers 6 \
     --lr 1e-5 \
     --train_path data/tabula_muris/preprocessed_reduced/tm_adata_train.pkl \

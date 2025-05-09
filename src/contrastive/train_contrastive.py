@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
 from sklearn.model_selection import train_test_split
+import time
 
 os.environ["PL_DISABLE_SLURM"] = "1"
 for var in ["SLURM_NTASKS", "SLURM_NPROCS", "SLURM_STEP_NUM_TASKS"]:
@@ -51,6 +52,7 @@ def load_data(path):
     return X, domains, cells, adata
 
 def main(args):
+    start_time = time.time()
     # load data
     if args.randomsplit:
         X, domains, cells, adata = load_data(args.all_path)
@@ -87,10 +89,7 @@ def main(args):
         )
     
     current_datetime = datetime.now().strftime("%m-%d-%H:%M")
-    if args.encoder_type == "attention":
-        run_name = f"contrastive_attention_d{args.d_model}_h{args.n_heads}_l{args.n_layers}_t{args.temperature}_{current_datetime}"
-    else:
-        run_name = f"contrastive_dense_d{args.d_model}_l{args.n_layers}_t{args.temperature}_{current_datetime}"
+    run_name = f"{args.encoder_type}_{current_datetime}"
     out_directory = args.outdir + run_name
         
     os.makedirs(out_directory, exist_ok=True)
@@ -131,10 +130,35 @@ def main(args):
     )
 
     trainer.fit(model, train_loader, val_loader)
+    end_time = time.time()
+    training_time = end_time - start_time
+
+    # Save model stats
+    stats = {
+        "training_datetime": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "encoder_type": args.encoder_type,
+        "num_genes": train_X.shape[1],
+        "d_model": args.d_model,
+        "n_heads": args.n_heads,
+        "n_layers": args.n_layers,
+        "temperature": args.temperature,
+        "batch_size": args.batch_size,
+        "learning_rate": args.lr,
+        "epochs": args.epochs,
+        "dropout": args.dropout,
+        "cls_token": args.cls_token,
+        "multiply_by_expr": args.multiply_by_expr,
+        "projection": args.projection,
+        "training_time_seconds": training_time,
+        "training_time_hours": training_time / 3600
+    }
+    
+    with open(os.path.join(out_directory, "model_stats.txt"), "w") as f:
+        for key, value in stats.items():
+            f.write(f"{key}: {value}\n")
 
     trainer.save_checkpoint(out_directory + "/final.ckpt")
 
 if __name__ == "__main__":
-    torch.set_float32_matmul_precision("medium")
     args = parse_args()
     main(args)

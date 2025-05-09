@@ -1,5 +1,5 @@
 #! /bin/bash
-#SBATCH --job-name=contrastive6
+#SBATCH --job-name=contrastive8
 #SBATCH -p gpu --gres=gpu:1
 #SBATCH -n 8
 #SBATCH --mem=192G
@@ -13,15 +13,11 @@ source activate universalgene
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 python contrastive/train_contrastive.py \
-    --batch_size 512 \
-    --n_layers 2 \
-    --n_heads 2 \
-    --d_model 256 \
-    --epochs 10 \
-    --cls_token \
+    --batch_size 8192 \
+    --n_layers 12 \
+    --d_model 512 \
+    --epochs 50 \
     --nworkers 6 \
     --lr 1e-5 \
-    --train_path data/tabula_muris/preprocessed_reduced/tm_adata_train.pkl \
-    --val_path data/tabula_muris/preprocessed_reduced/tm_adata_test.pkl \
-    --projection \
-    --temperature 0.07
+    --encoder_type dense \
+    --temperature 0.07 \

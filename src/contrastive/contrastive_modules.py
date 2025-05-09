@@ -38,6 +38,7 @@ class AttentionEncoder(nn.Module):
         x = self.encoder(x)
         if self.projection:
             x = self.projection_head(x)
+        x = F.normalize(x, dim=-1)
         return x[:, 0] if self.use_cls else x.mean(dim=1)
 
 class DenseEncoder(nn.Module):
@@ -59,7 +60,8 @@ class DenseEncoder(nn.Module):
         self.encoder = nn.Sequential(*layers)
     
     def forward(self, x):
-        return self.encoder(x)
+        x = self.encoder(x)
+        return F.normalize(x, dim=-1)
     
 class ProjectionHead(nn.Module):
     def __init__(self, d_model):
@@ -71,7 +73,7 @@ class ProjectionHead(nn.Module):
         )
 
     def forward(self, x):
-        return F.normalize(self.net(x), dim=-1)
+        return self.net(x)
         
         
 
