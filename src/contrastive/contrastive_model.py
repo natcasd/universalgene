@@ -1,5 +1,5 @@
 import pytorch_lightning as pl
-from contrastive_modules import AttentionEncoder
+from contrastive_modules import AttentionEncoder, DenseEncoder
 import torch
 import torch.nn.functional as F
 from torch.optim.lr_scheduler import ReduceLROnPlateau
@@ -20,11 +20,13 @@ def supervised_contrastive_loss(embeddings, cell_types, temperature):
     return loss
     
 class ContrastiveModel(pl.LightningModule):
-    def __init__(self, n_genes, d_model, n_heads, n_layers, lr, cls_token=False, multiply_by_expr=False, temperature=1.0, outdir=None):
+    def __init__(self, n_genes, d_model, n_heads, n_layers, lr, cls_token=False, multiply_by_expr=False, temperature=1.0, outdir=None, encoder_type="attention", dropout=0.1):
         super(ContrastiveModel, self).__init__()
         self.save_hyperparameters()
-
-        self.encoder = AttentionEncoder(n_genes, d_model, n_heads, n_layers, cls_token, multiply_by_expr)
+        if encoder_type == "attention":
+            self.encoder = AttentionEncoder(n_genes, d_model, n_heads, n_layers, cls_token, multiply_by_expr)
+        elif encoder_type == "dense":
+            self.encoder = DenseEncoder(n_genes, d_model, n_layers, dropout)
         self.temperature = temperature
         self.outdir = outdir
     def forward(self, x):
@@ -35,7 +37,8 @@ class ContrastiveModel(pl.LightningModule):
         embeddings = self.encoder(x)
         embeddings = F.normalize(embeddings, dim=1)
         loss = supervised_contrastive_loss(embeddings, cell_types, self.temperature)
-        self.log("train/loss",  loss,  on_step=False, on_epoch=True, prog_bar=True)
+        if batch_idx % 10 == 0:  # Log every 10 steps
+            self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True)
         return loss
     
     def validation_step(self, batch, batch_idx):
@@ -43,7 +46,15 @@ class ContrastiveModel(pl.LightningModule):
         embeddings = self.encoder(x)
         embeddings = F.normalize(embeddings, dim=1)
         loss = supervised_contrastive_loss(embeddings, cell_types, self.temperature)
-        self.log("val/loss",  loss,  on_step=False, on_epoch=True, prog_bar=True)
+        self.log("val/loss", loss, on_epoch=True, prog_bar=False)
+
+    def on_train_epoch_end(self):
+        train_loss = self.trainer.callback_metrics["train/loss"].item()
+        val_loss = self.trainer.callback_metrics["val/loss"].item()
+        print(f"\nEpoch {self.current_epoch} summary:")
+        print(f"Train loss: {train_loss:.4f}")
+        print(f"Val loss: {val_loss:.4f}")
+        print(f"Time taken: {self.trainer.callback_metrics.get('time', 'N/A')}\n")
 
     def configure_optimizers(self):
         opt = torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
