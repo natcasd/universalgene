@@ -57,10 +57,24 @@ class PlotAndEmbed(Callback):
         print('calculating neighbors...',flush=True)
         adata = self.test_data.copy()
         adata.obsm['X_emb'] = emb
+
+        top_n = 50
+        col = 'cell_ontology_class'
+
+        # Convert to string to safely manipulate without category issues
+        adata.obs[f'{col}_top'] = adata.obs[col].astype(str)
+
+        # Replace non-top labels with 'Other'
+        top = adata.obs[f'{col}_top'].value_counts().index[:top_n]
+        adata.obs[f'{col}_top'] = adata.obs[f'{col}_top'].where(adata.obs[f'{col}_top'].isin(top), 'Other')
+
+        # Convert to category (optional, good for plotting)
+        adata.obs[f'{col}_top'] = adata.obs[f'{col}_top'].astype('category')
+        
         sc.pp.neighbors(adata, use_rep="X_emb")
         print('calculating umap...',flush=True)
         sc.tl.umap(adata, n_components=2)
-        fig3 = sc.pl.umap(adata, color='cell_ontology_class', size=10, show=False, return_fig=True)
+        fig3 = sc.pl.umap(adata, color='cell_ontology_class_top', size=10, show=False, return_fig=True)
         fig3.savefig(f"{self.outdir}/umap_cell_type.png")
         plt.close(fig3)
         fig4 = sc.pl.umap(adata, color='tech', size=20, show=False, return_fig=True)

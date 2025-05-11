@@ -6,6 +6,7 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 # implementation of https://arxiv.org/abs/2004.11362
 def supervised_contrastive_loss(embeddings, cell_types, temperature):
+    embeddings = F.normalize(embeddings, dim=-1)
     similarity_matrix = torch.matmul(embeddings, embeddings.T) / temperature
     logits_mask = torch.ones_like(similarity_matrix) - torch.eye(embeddings.size(0), device=embeddings.device)
 
@@ -26,7 +27,7 @@ class ContrastiveModel(pl.LightningModule):
         if encoder_type == "attention":
             self.encoder = AttentionEncoder(n_genes, d_model, n_heads, n_layers, cls_token, multiply_by_expr, projection)
         elif encoder_type == "dense":
-            self.encoder = DenseEncoder(n_genes, d_model, n_layers, dropout)
+            self.encoder = DenseEncoder(n_genes, d_model, n_layers, dropout, projection)
         self.temperature = temperature
         self.outdir = outdir
     def forward(self, x):
